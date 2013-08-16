@@ -4,15 +4,17 @@ prerender
 What does this do?
 ------------------
 
-Serves any web pages to SEOs as rendered. In other words executes all js and wait for all html to be generated before serving.
+Serves any web page to SEOs as rendered. In other words executes all js and wait for all html to be generated before serving.
 
 How to use?
 -----------
 
 Basically proxy_pass all requests coming from SEO bots to `prerender` server, and you're done.
 
-Example nginx configuration with existing Passenger config
+Example nginx configuration
 ---------------------------
+
+*...with existing Passenger config*
 
 Assuming that nginx is configured by Passenger automatically hence you have default Passenger nginx configuration.
 
@@ -41,7 +43,7 @@ if ($needPrerender = "YES") {
 }
 ```
 
-Then isn the same directory, open existing `nginx.conf`
+Then in the same directory, open existing `nginx.conf`
 
 **nginx.conf**
 
