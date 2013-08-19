@@ -9,7 +9,24 @@ Serves any web page to SEOs as rendered. In other words executes all js and wait
 How to use?
 -----------
 
+`prerender-server` waits until your page gives it a hint about that rendering is done then serves the generated HTML to SEO. If `prerender-server` can't get a hint in some time(default 10s) timeout occurs and current content is served to SEO. For more info about the *hint* see below: *Client side*. 
+
+**Server side**
+
 Basically proxy_pass all requests coming from SEO bots to `prerender` server, and you're done.
+
+**Client side**
+
+Add `class="seo-render-ready"` to any DOM element when you think the page's rendering is *fully done*.
+
+Example AngularJs usage
+-----------------------
+
+In a `ng-repeat` directive you can make sure that `ng-repeat` is rendered by putting folloing in to `ng-repeat` loop.
+
+```
+<span ng-if="$last" class="seo-render-ready"></span>
+```
 
 Example nginx configuration
 ---------------------------

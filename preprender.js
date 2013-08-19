@@ -1,7 +1,8 @@
 var http = require('http'),
     url = require('url'),
     phantom = require('phantom'),
-    port = process.argv[2] || 7737;// 7737:prer for "preR"ender
+    port = process.argv[2] || 7737,// 7737:prer for "preR"ender
+    readyWaitTimeout = 10000;
 
 process.on('uncaughtException', function(err) {
   console.error('Caught exception: ' + err);
@@ -55,7 +56,8 @@ http.createServer(function(request, response) {
   function getPage() {
     return phantomObj.createPage(function(page) {
       return page.open(target, function(status) {
-        console.log('opened', target, '?', status, '\n');
+        var startTime = new Date().getTime();
+        console.log('opened', target, 'status:', status, '\n');
 
         if(status != 'success'){
           console.log('422 Unprocessable Entity: url cannot be opened!\n', request.url, '\n');
@@ -66,42 +68,71 @@ http.createServer(function(request, response) {
           return;
         }
 
-        return page.evaluate((function() {
+        function evaluate() {
+          console.log('checking if page is ready...');
+          page.evaluate((function() {
+            var pageReady = false;
 
-          //TODO wait until some condition is hold
-
-          //thanks: http://stackoverflow.com/a/10162353/878361
-          var node = document.doctype;
-          var doctype = "<!DOCTYPE "
-                   + node.name
-                   + (node.publicId ? ' PUBLIC "' + node.publicId + '"' : '')
-                   + (!node.publicId && node.systemId ? ' SYSTEM' : '') 
-                   + (node.systemId ? ' "' + node.systemId + '"' : '')
-                   + '>';
-
-          var html = '<html ';
-
-          try{
-            var attributes = document.getElementsByTagName('html')[0].attributes
-            for(var i = 0; i < attributes.length; i++){
-              var attr = attributes[i];
-              html += '"' + attr.name + '"="' + attr.value + '" ';
+            var array = document.getElementsByClassName('seo-render-ready');
+            if(array.length > 0){
+              pageReady = true;
             }
-          }
-          catch(e){}
 
-          html += '>';
+            function generatePrerendered() {
+              //thanks: http://stackoverflow.com/a/10162353/878361
+              var node = document.doctype;
+              var doctype = "<!DOCTYPE "
+                       + node.name
+                       + (node.publicId ? ' PUBLIC "' + node.publicId + '"' : '')
+                       + (!node.publicId && node.systemId ? ' SYSTEM' : '') 
+                       + (node.systemId ? ' "' + node.systemId + '"' : '')
+                       + '>';
 
-          return doctype + html + document.documentElement.innerHTML + '</html>';
-        }), function(result) {
-          // console.log('Page title is ' + result);
+              var html = '<html ';
 
-          response.writeHead(200);
-          response.write(result);
-          response.end();
-          page.close();
-          return;
-        });
+              try{
+                var attributes = document.getElementsByTagName('html')[0].attributes
+                for(var i = 0; i < attributes.length; i++){
+                  var attr = attributes[i];
+                  html += '"' + attr.name + '"="' + attr.value + '" ';
+                }
+              }
+              catch(e){}
+
+              html += '>';
+
+              return doctype + html + document.documentElement.innerHTML + '</html>';
+            }
+
+            return {
+              pageReady: pageReady,
+              content: generatePrerendered()
+            };
+          }), function(result) {
+            // wait untill there is a result
+            var timeoutOccured = (new Date().getTime()) - startTime > readyWaitTimeout;
+            if(result.pageReady || timeoutOccured){
+              if(timeoutOccured){
+                console.log('timeout occured, serving');
+              }
+              else{
+                console.log('page is ready, serving');
+              }
+              response.writeHead(200);
+              response.write(result.content);
+              response.end();
+              page.close();
+              return;
+            }
+            else{
+              console.log('page is not ready, scheduling new evaluation');
+              setTimeout(evaluate, 250);
+            }
+          });//page evaluate
+        }
+
+        evaluate();
+
       });
     });
   }
