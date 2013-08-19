@@ -115,10 +115,10 @@ http.createServer(function(request, response) {
                 var timeoutOccured = (new Date().getTime()) - startTime > readyWaitTimeout;
                 if(result.pageReady || timeoutOccured){
                   if(timeoutOccured){
-                    console.log('timeout occured, serving');
+                    console.log('timeout occured, serving', target);
                   }
                   else{
-                    console.log('page is ready, serving');
+                    console.log('page is ready, serving', target);
                   }
                   response.writeHead(200);
                   response.write(result.content);
@@ -127,7 +127,7 @@ http.createServer(function(request, response) {
                   return;
                 }
                 else{
-                  console.log('page is not ready, scheduling new evaluation');
+                  // console.log('page is not ready, scheduling new evaluation');
                   setTimeout(evaluate, 250);
                 }
 
