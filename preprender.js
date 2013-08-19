@@ -30,18 +30,6 @@ http.createServer(function(request, response) {
 
   console.log('Loading[striped]', target);
 
-  // only prerender html content
-  if(request.headers.accept.indexOf('html') == -1){
-    // redirect non-html content to original server but with an overriden user-agent
-    console.log('redirecting', target);
-    response.writeHead(302, {
-      'Location': target,
-      'user-agent': 'prerender-server'// avoid infinite redirection loop (thru nginx)
-    });
-    response.end();
-    return;
-  }
-
   if(phantomObj == null){
 
     phantom.create(function(ph) {
