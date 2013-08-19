@@ -48,10 +48,7 @@ http.createServer(function(request, response) {
         console.log('opened', target, 'status:', status, '\n');
 
         if(status != 'success'){
-          console.log('422 Unprocessable Entity: url cannot be opened!\n', request.url, '\n');
-          response.writeHead(422);
-          response.write('422 Unprocessable Entity: url cannot be opened!\n' + request.url);
-          response.end();
+          serveNonhtml(target, response);
           page.close();
           return;
         }
@@ -61,6 +58,12 @@ http.createServer(function(request, response) {
           page.evaluate((function() {
             var pageReady = false;
 
+            if(!document.doctype){
+              return {
+                nonhtml: true
+              }
+            }
+
             var array = document.getElementsByClassName('seo-render-ready');
             if(array.length > 0){
               pageReady = true;
@@ -69,12 +72,17 @@ http.createServer(function(request, response) {
             function generatePrerendered() {
               //thanks: http://stackoverflow.com/a/10162353/878361
               var node = document.doctype;
-              var doctype = "<!DOCTYPE "
-                       + node.name
-                       + (node.publicId ? ' PUBLIC "' + node.publicId + '"' : '')
-                       + (!node.publicId && node.systemId ? ' SYSTEM' : '') 
-                       + (node.systemId ? ' "' + node.systemId + '"' : '')
-                       + '>';
+              try{
+                var doctype = "<!DOCTYPE "
+                               + node.name
+                               + (node.publicId ? ' PUBLIC "' + node.publicId + '"' : '')
+                               + (!node.publicId && node.systemId ? ' SYSTEM' : '') 
+                               + (node.systemId ? ' "' + node.systemId + '"' : '')
+                               + '>';
+              }
+              catch(e){
+                doctype = "";
+              }
 
               var html = '<html ';
 
@@ -97,25 +105,32 @@ http.createServer(function(request, response) {
               content: generatePrerendered()
             };
           }), function(result) {
-            // wait untill there is a result
-            var timeoutOccured = (new Date().getTime()) - startTime > readyWaitTimeout;
-            if(result.pageReady || timeoutOccured){
-              if(timeoutOccured){
-                console.log('timeout occured, serving');
-              }
-              else{
-                console.log('page is ready, serving');
-              }
-              response.writeHead(200);
-              response.write(result.content);
-              response.end();
-              page.close();
-              return;
-            }
-            else{
-              console.log('page is not ready, scheduling new evaluation');
-              setTimeout(evaluate, 250);
-            }
+
+                if(result.nonhtml){
+                  serveNonhtml(target, response);
+                  return;
+                }
+
+                // wait untill there is a result
+                var timeoutOccured = (new Date().getTime()) - startTime > readyWaitTimeout;
+                if(result.pageReady || timeoutOccured){
+                  if(timeoutOccured){
+                    console.log('timeout occured, serving');
+                  }
+                  else{
+                    console.log('page is ready, serving');
+                  }
+                  response.writeHead(200);
+                  response.write(result.content);
+                  response.end();
+                  page.close();
+                  return;
+                }
+                else{
+                  console.log('page is not ready, scheduling new evaluation');
+                  setTimeout(evaluate, 250);
+                }
+
           });//page evaluate
         }
 
@@ -133,6 +148,30 @@ function stripEscapeFragment(url) {
   url = url.replace('_escaped_fragment_=', '');
   url = url.replace('_escaped_fragment_', '');
   return url;
+}
+
+function serveNonhtml(target, response) {
+  console.log('serving non-html', target);
+
+  http.get(target, function(res) {
+    console.log("Got response: " + res.statusCode);
+    //TODO handle status 302 redirect
+
+    response.writeHead(200, res.headers);
+    res.on('data', function (chunk) {
+      response.write(chunk, 'binary');
+    });
+
+    res.on('end', function (chunk) {
+      response.end();
+    });
+
+  }).on('error', function(e) {
+    console.log("Got error: " + e.message);
+    response.writeHead(404);
+    response.write('404 Not found');
+    response.end();
+  });
 }
 
 console.log("Prerender server running on localhost:" + port + "\nCTRL + C to shutdown");
