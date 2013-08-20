@@ -46,7 +46,7 @@ if ($request_uri ~ '_escaped_fragment_') {
   set $needPrerender "Y";
 }
 
-if ($http_user_agent ~* (googlebot|bingbot|yahooseeker|slurp|feedfetcher|blekkobot|crawler|google.com) ) {
+if ($http_user_agent ~* (googlebot|google.com|bingbot|bing.com|yandexbot|yandex.com|yahooseeker|yahoo.com|slurp|feedfetcher|blekkobot|crawler) ) {
   set $needPrerender "Y";
 }
 
