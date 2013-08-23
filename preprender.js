@@ -50,16 +50,26 @@ http.createServer(function(request, response) {
 
   console.log('Loading[striped]', target);
 
-  if(phantomObj == null){
-
-    phantom.create(function(ph) {
-      phantomObj = ph;
-      getPage();
-    });
-  }
-  else{
-    getPage();
-  }
+  //check response status first via HEAD
+  learnStatusCode(target, function(statusCode) {
+    if(statusCode != 200){
+      console.log('statusCode:', statusCode, 'using proxy server instead of phantomjs');
+      //use this to pass original headers and status code
+      serveNonhtml(target, response);
+    }
+    else{// use phantom and render page
+      console.log('status 200 using phantomjs');
+      if(phantomObj == null){
+        phantom.create(function(ph) {
+          phantomObj = ph;
+          getPage();
+        });
+      }
+      else{
+        getPage();
+      }
+    }
+  });
 
   function getPage() {
     return phantomObj.createPage(function(page) {
@@ -174,10 +184,10 @@ function serveNonhtml(target, response) {
   console.log('serving non-html', target);
 
   http.get(target, function(res) {
-    console.log("Got response: " + res.statusCode);
+    // console.log("Got response: " + res.statusCode);
     //TODO handle status 302 redirect
 
-    response.writeHead(200, res.headers);
+    response.writeHead(res.statusCode, res.headers);
     res.on('data', function (chunk) {
       response.write(chunk, 'binary');
     });
@@ -187,11 +197,30 @@ function serveNonhtml(target, response) {
     });
 
   }).on('error', function(e) {
-    console.log("Got error: " + e.message);
+    // console.log("Got error: " + e.message);
     response.writeHead(404);
     response.write('404 Not found');
     response.end();
   });
+}
+
+function learnStatusCode(target, callback){
+  var parsedUrl = url.parse(target)
+
+  var options = {
+    hostname: parsedUrl.hostname,
+    path: parsedUrl.path,
+    method: 'HEAD'
+  };
+
+  var req = http.request(options, function(res) {
+    // console.log('STATUS: ' + res.statusCode);
+    if(typeof callback == 'function'){
+      callback(res.statusCode);
+    }
+  });
+
+  req.end();
 }
 
 console.log("Prerender server running on localhost:" + port + "\nCTRL + C to shutdown");
