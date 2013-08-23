@@ -35,7 +35,6 @@ http.createServer(function(request, response) {
 
   var target = url.parse(request.url).query ? url.parse(request.url).query.replace('url=', '') : null;
 
-
   if(target == null){
     console.log('422 Unprocessable Entity: url parameter is missing!\n', request.url + '\n');
     response.writeHead(422);
@@ -47,28 +46,28 @@ http.createServer(function(request, response) {
   console.log('Loading', target);
 
   target = stripEscapeFragment(target);
+  var statusCode = 200;
 
   console.log('Loading[striped]', target);
 
   //check response status first via HEAD
-  learnStatusCode(target, function(statusCode) {
-    if(statusCode != 200){
-      console.log('statusCode:', statusCode, 'using proxy server instead of phantomjs');
-      //use this to pass original headers and status code
-      serveNonhtml(target, response);
+  learnStatusCode(target, function(statusCodeOrginal) {
+    if(statusCodeOrginal != 200){
+      console.log('using statusCode:', statusCodeOrginal);
+      //use this to pass original status code
+      statusCode = statusCodeOrginal;
     }
-    else{// use phantom and render page
-      console.log('status 200 using phantomjs');
-      if(phantomObj == null){
-        phantom.create(function(ph) {
-          phantomObj = ph;
-          getPage();
-        });
-      }
-      else{
+
+    if(phantomObj == null){
+      phantom.create(function(ph) {
+        phantomObj = ph;
         getPage();
-      }
+      });
     }
+    else{
+      getPage();
+    }
+
   });
 
   function getPage() {
@@ -150,7 +149,7 @@ http.createServer(function(request, response) {
                   else{
                     console.log('page is ready, serving', target);
                   }
-                  response.writeHead(200);
+                  response.writeHead(statusCode);
                   response.write(result.content);
                   response.end();
                   page.close();
