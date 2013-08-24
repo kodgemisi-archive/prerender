@@ -149,8 +149,10 @@ http.createServer(function(request, response) {
                   else{
                     console.log('page is ready, serving', target);
                   }
-                  response.writeHead(statusCode);
-                  response.write(result.content);
+                  response.writeHead(statusCode, {
+                    'Content-Length': Buffer.byteLength(result.content, 'utf8')
+                  });
+                  response.write(result.content, 'utf8');
                   response.end();
                   page.close();
                   return;
@@ -209,6 +211,7 @@ function learnStatusCode(target, callback){
   var options = {
     hostname: parsedUrl.hostname,
     path: parsedUrl.path,
+    port: parsedUrl.port,
     method: 'HEAD'
   };
 
@@ -216,6 +219,10 @@ function learnStatusCode(target, callback){
     // console.log('STATUS: ' + res.statusCode);
     if(typeof callback == 'function'){
       callback(res.statusCode);
+    }
+  }).on('error', function(e) {
+    if(typeof callback == 'function'){
+      callback(200);//leave it as default
     }
   });
 
