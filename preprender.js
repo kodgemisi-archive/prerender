@@ -119,7 +119,7 @@ http.createServer(function(request, response) {
                 var attributes = document.getElementsByTagName('html')[0].attributes
                 for(var i = 0; i < attributes.length; i++){
                   var attr = attributes[i];
-                  html += '"' + attr.name + '"="' + attr.value + '" ';
+                  html += attr.name + '="' + attr.value + '" ';
                 }
               }
               catch(e){}
