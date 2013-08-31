@@ -4,7 +4,6 @@
   "author": "Destan <destan@dorukdestan.com>",
   "description": "prerenders web pages to serve them SEOs fully rendered",
   "dependencies" : {
-    "phantom": ""
   }, 
   "license": "GPLv3",
   "engines": {

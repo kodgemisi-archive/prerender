@@ -20,7 +20,7 @@ along with this program.  If not, see {http://www.gnu.org/licenses/}
 
 var http = require('http'),
     url = require('url'),
-    phantom = require('phantom'),
+    exec = require('child_process').exec,
     port = process.argv[2] || 7737,// 7737:prer for "preR"ender
     readyWaitTimeout = 10000;
 
@@ -50,125 +50,22 @@ http.createServer(function(request, response) {
 
   console.log('Loading[striped]', target);
 
-  //check response status first via HEAD
-  learnStatusCode(target, function(statusCodeOrginal) {
-    if(statusCodeOrginal != 200){
-      console.log('using statusCode:', statusCodeOrginal);
-      //use this to pass original status code
-      statusCode = statusCodeOrginal;
-    }
+  try{
+    child = exec('phantomjs --load-images=false scrap.js ' + target + " | grep -E '^<result>'"
+    ,function (error, stdout, stderr) {
+        var result = JSON.parse(stdout.replace(/^<result>/, ''));
 
-    if(phantomObj == null){
-      phantom.create(function(ph) {
-        phantomObj = ph;
-        getPage();
-      });
-    }
-    else{
-      getPage();
-    }
-
-  });
-
-  function getPage() {
-    return phantomObj.createPage(function(page) {
-      return page.open(target, function(status) {
-        var startTime = new Date().getTime();
-        console.log('opened', target, 'status:', status, '\n');
-
-        if(status != 'success'){
-          serveNonhtml(target, response);
-          page.close();
-          return;
-        }
-
-        function evaluate() {
-          // console.log('checking if page is ready...');
-          page.evaluate((function() {
-            var pageReady = false;
-
-            if(!document.doctype){
-              return {
-                nonhtml: true
-              }
-            }
-
-            var array = document.getElementsByClassName('seo-render-ready');
-            if(array.length > 0){
-              pageReady = true;
-            }
-
-            function generatePrerendered() {
-              //thanks: http://stackoverflow.com/a/10162353/878361
-              var node = document.doctype;
-              try{
-                var doctype = "<!DOCTYPE "
-                               + node.name
-                               + (node.publicId ? ' PUBLIC "' + node.publicId + '"' : '')
-                               + (!node.publicId && node.systemId ? ' SYSTEM' : '') 
-                               + (node.systemId ? ' "' + node.systemId + '"' : '')
-                               + '>';
-              }
-              catch(e){
-                doctype = "";
-              }
-
-              var html = '<html ';
-
-              try{
-                var attributes = document.getElementsByTagName('html')[0].attributes
-                for(var i = 0; i < attributes.length; i++){
-                  var attr = attributes[i];
-                  html += attr.name + '="' + attr.value + '" ';
-                }
-              }
-              catch(e){}
-
-              html += '>';
-
-              return doctype + html + document.documentElement.innerHTML + '</html>';
-            }
-
-            return {
-              pageReady: pageReady,
-              content: generatePrerendered()
-            };
-          }), function(result) {
-
-                if(result.nonhtml){
-                  serveNonhtml(target, response);
-                  return;
-                }
-
-                // wait untill there is a result
-                var timeoutOccured = (new Date().getTime()) - startTime > readyWaitTimeout;
-                if(result.pageReady || timeoutOccured){
-                  if(timeoutOccured){
-                    console.log('timeout occured, serving', target);
-                  }
-                  else{
-                    console.log('page is ready, serving', target);
-                  }
-                  response.writeHead(statusCode, {
-                    'Content-Length': Buffer.byteLength(result.content, 'utf8')
-                  });
-                  response.write(result.content, 'utf8');
-                  response.end();
-                  page.close();
-                  return;
-                }
-                else{
-                  // console.log('page is not ready, scheduling new evaluation');
-                  setTimeout(evaluate, 250);
-                }
-
-          });//page evaluate
-        }
-
-        evaluate();
-
-      });
-    });
+        response.writeHead(result.status, createHeaders(result.headers));
+        response.write(result.content, 'utf8');
+        response.end();
+        console.log('served', target, result.status);
+      }
+    );
+  }
+  catch(e){
+    response.writeHead(500);
+    response.write('server error', 'utf8');
+    response.end();
   }
 
 }).listen(parseInt(port));
@@ -181,52 +78,17 @@ function stripEscapeFragment(url) {
   return url;
 }
 
-function serveNonhtml(target, response) {
-  console.log('serving non-html', target);
+function createHeaders(headers) {
+  var result = {};
+  for(var i=0; i < headers.length; i++){
+    var h = headers[i];
+    result[h.name.toLocaleLowerCase()] = h.value;
+  }
 
-  http.get(target, function(res) {
-    // console.log("Got response: " + res.statusCode);
-    //TODO handle status 302 redirect
+  //delete gzip stuff otherwise page is not rendered 
+  delete result['content-encoding'];
 
-    response.writeHead(res.statusCode, res.headers);
-    res.on('data', function (chunk) {
-      response.write(chunk, 'binary');
-    });
-
-    res.on('end', function (chunk) {
-      response.end();
-    });
-
-  }).on('error', function(e) {
-    // console.log("Got error: " + e.message);
-    response.writeHead(404);
-    response.write('404 Not found');
-    response.end();
-  });
-}
-
-function learnStatusCode(target, callback){
-  var parsedUrl = url.parse(target)
-
-  var options = {
-    hostname: parsedUrl.hostname,
-    path: parsedUrl.path,
-    port: parsedUrl.port,
-    method: 'HEAD'
-  };
-
-  var req = http.request(options, function(res) {
-    // console.log('STATUS: ' + res.statusCode);
-    if(typeof callback == 'function'){
-      callback(res.statusCode);
-    }
-  }).on('error', function(e) {
-    if(typeof callback == 'function'){
-      callback(200);//leave it as default
-    }
-  });
-
-  req.end();
+  return result;
 }
 
 console.log("Prerender server running on localhost:" + port + "\nCTRL + C to shutdown");
